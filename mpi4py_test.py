@@ -4,8 +4,8 @@
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-size = comm.Get_size()
+iproc = comm.Get_rank()
+nproc = comm.Get_size()
 inode = MPI.Get_processor_name()    # Node where this MPI process runs
 if iproc == 0: print ("This code is a test for mpi4py.")
 for i in range(0,nproc):
