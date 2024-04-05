@@ -7,8 +7,19 @@ from mpi4py import MPI
 
 # Function to extract hour and date from tweet 2021-06-21T03:18:59.000Z
 def extract_date_hour(tweet):
-    date = tweet["doc"]["data"]["created_at"].split("T")
-    return date[0], date[1].split(":")[0]
+    # Safely access nested data, returning None if any key is missing
+    doc = tweet.get("doc")
+    if doc is None:
+        return None, None  # Return a placeholder if 'doc' is missing
+    data = doc.get("data")
+    if data is None:
+        return None, None  # Return a placeholder if 'data' is missing
+    created_at = data.get("created_at", "").split("T")
+    if not created_at:
+        return None, None  # Return a placeholder if 'created_at' is missing or empty
+    
+    return created_at[0], created_at[1].split(":")[0] if len(created_at) > 1 else None
+
 
 # Main function
 def main():
@@ -45,8 +56,9 @@ def main():
     # Print how many tweets are being processed
     print(f"Rank {rank} is processing {len(local_tweets)} tweets")
 
-    # Extract date-hours from tweets
+    # Extract date-hours from tweets, now with added filtering of None values
     date_hour = [extract_date_hour(tweet) for tweet in local_tweets]
+    date_hour = [dh for dh in date_hour if dh[0] is not None and dh[1] is not None]
 
     # Combine days and hours to form unique date-hour pairs
     date_hour_count = np.unique(date_hour, axis=0, return_counts=True)
