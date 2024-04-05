@@ -1,27 +1,43 @@
 #!/usr/bin/env python
 import sys
 import json
-import numpy as np
 import pandas as pd
 from mpi4py import MPI
 
-# Function to extract hour and date from tweet 2021-06-21T03:18:59.000Z
-def extract_date_hour(tweet):
-    # Safely access nested data, returning None if any key is missing
-    doc = tweet.get("doc")
-    if doc is None:
-        return None, None  # Return a placeholder if 'doc' is missing
-    data = doc.get("data")
-    if data is None:
-        return None, None  # Return a placeholder if 'data' is missing
-    created_at = data.get("created_at", "").split("T")
-    if not created_at:
-        return None, None  # Return a placeholder if 'created_at' is missing or empty
-    
-    return created_at[0], created_at[1].split(":")[0] if len(created_at) > 1 else None
+def extract_tweet_info(tweet):
+    """Extract date, hour, and sentiment from tweet. Returns None if any info is missing."""
+    try:
+        doc = tweet.get("doc", {})
+        data = doc.get("data", {})
+        created_at = data["created_at"].split("T")
+        date = created_at[0]
+        hour = created_at[1][:2]  # Get only the hour part
 
+        # Extract sentiment safely
+        sentiment_value = data.get("sentiment")
+        if isinstance(sentiment_value, dict):
+            # If sentiment is a dict, extract the numerical value
+            sentiment = float(sentiment_value.get("score", 0))
+        else:
+            # If sentiment is already a numerical value (or string that can be converted)
+            sentiment = float(sentiment_value)
 
-# Main function
+        return date, hour, sentiment
+    except (KeyError, IndexError, ValueError, TypeError):
+        # KeyError for missing keys, IndexError for split issues,
+        # ValueError or TypeError for conversion errors
+        return None
+
+def process_tweets(tweets):
+    """Process a list of tweets to extract relevant info and create a DataFrame."""
+    # Extract info from each tweet
+    extracted_info = [extract_tweet_info(tweet) for tweet in tweets]
+    # Remove None entries
+    extracted_info = [info for info in extracted_info if info is not None]
+    # Convert to DataFrame
+    df = pd.DataFrame(extracted_info, columns=['Date', 'Hour', 'Sentiment'])
+    return df
+
 def main():
     # MPI initialization
     comm = MPI.COMM_WORLD
@@ -30,72 +46,51 @@ def main():
 
     if rank == 0:
         print(f"Running on {size} cores")
-
-    # Check arguments
-    if len(sys.argv) != 2:
-        if rank == 0:
+        if len(sys.argv) != 2:
             print("Usage: mpiexec -n <num_processes> python mpi_twitter_metrics.py <json_file_path>")
-        sys.exit(1)
-
-    json_file_path = sys.argv[1]
-
-    # Read JSON file
-    if rank == 0:
+            sys.exit(1)
+        json_file_path = sys.argv[1]
+        # Read and distribute data only on root
         with open(json_file_path, 'r') as file:
             tweet_data = json.load(file)["rows"]
-
-        # Divide the data into chunks
-        chunk_size = len(tweet_data) // size
-        chunked_tweets = [tweet_data[i:i+chunk_size] for i in range(0, len(tweet_data), chunk_size)]
+        # Calculate chunk size and distribute data
+        chunks = [tweet_data[i::size] for i in range(size)]
     else:
-        chunked_tweets = None
+        chunks = None
 
-    # Scatter tweet data across processes
-    local_tweets = comm.scatter(chunked_tweets, root=0)
-
-    # Print how many tweets are being processed
+    # Scatter chunks of tweet data to all processes
+    local_tweets = comm.scatter(chunks, root=0)
     print(f"Rank {rank} is processing {len(local_tweets)} tweets")
 
-    # Extract date-hours from tweets, now with added filtering of None values
-    date_hour = [extract_date_hour(tweet) for tweet in local_tweets]
-    date_hour = [dh for dh in date_hour if dh[0] is not None and dh[1] is not None]
+    # Process local chunk of tweets
+    df_local = process_tweets(local_tweets)
 
-    # Combine days and hours to form unique date-hour pairs
-    date_hour_count = np.unique(date_hour, axis=0, return_counts=True)
+    # Gather all DataFrames on root
+    gathered_data = comm.gather(df_local, root=0)
 
-    # Gather date_hour_count from all processes
-    all_date_hour = comm.gather(date_hour_count, root=0)
-
-    # Process results on root process
+    # Only root process will aggregate and analyze the data
     if rank == 0:
-
-        # Extract date-hour pairs and counts from all_date_hour
-        date_hour_counts = np.concatenate([arr[0] for arr in all_date_hour])
-        counts = np.concatenate([arr[1] for arr in all_date_hour])
+        # Concatenate all DataFrames into a single one
+        df_all = pd.concat(gathered_data)
+        # Aggregate and analyze the data for activity
+        most_tweets_hour = df_all.groupby(['Date', 'Hour']).size().idxmax()
+        most_tweets_day = df_all.groupby('Date').size().idxmax()
         
-        # Create a DataFrame for aggregation
-        df = pd.DataFrame(date_hour_counts, columns=['Date', 'Hour'])
-        df['Count'] = counts
+        # Aggregate and analyze the data for sentiment
+        happiest_hour_data = df_all.groupby(['Date', 'Hour'])['Sentiment'].mean().idxmax()
+        happiest_day_data = df_all.groupby('Date')['Sentiment'].mean().idxmax()
+        
+        most_tweets_hour_count = df_all.groupby(['Date', 'Hour']).size().max()
+        most_tweets_day_count = df_all.groupby('Date').size().max()
+        happiest_hour_score = df_all.groupby(['Date', 'Hour'])['Sentiment'].mean().max()
+        happiest_day_score = df_all.groupby('Date')['Sentiment'].mean().max()
 
-        # Show the first 5 rows of the dataframe
-        print(df.head())
+        print("\n")
+        print(f"Total number of tweets: {len(df_all)}\n")
+        print(f"The happiest hour ever: {happiest_hour_data[1]}:00 on {happiest_hour_data[0]} with an overall sentiment score of {happiest_hour_score}")
+        print(f"The happiest day ever: {happiest_day_data} was the happiest day with an overall sentiment score of {happiest_day_score}")
+        print(f"The most active hour ever: {most_tweets_hour[1]}:00 on {most_tweets_hour[0]} had the most tweets (#{most_tweets_hour_count})")
+        print(f"The most active day ever: {most_tweets_day} had the most tweets (#{most_tweets_day_count})")
 
-        # Aggregate counts for each date-hour pair and date
-        aggregated_hour_counts = df.groupby(['Date', 'Hour'])['Count'].sum()
-        aggregated_date_counts = df.groupby('Date')['Count'].sum()
-
-        # Find the most active date and hour
-        most_active_hour = aggregated_hour_counts.idxmax()
-        most_active_hour_count = aggregated_hour_counts.loc[most_active_hour]
-
-        most_active_date =  aggregated_date_counts.idxmax()
-        most_active_date_count = aggregated_date_counts.loc[most_active_date]
-
-        # Print most active date-hour pair
-        print(f"The most active hour: {most_active_hour[1]}:00 on {most_active_hour[0]} had the most tweets (#{most_active_hour_count})")
-        print(f"The most active date: {most_active_date} had the most tweets (#{most_active_date_count})")
-
-
-# Execute main function
 if __name__ == "__main__":
     main()
