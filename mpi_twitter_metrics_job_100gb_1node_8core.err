@@ -1,0 +1,5 @@
+slurmstepd: error: Detected 1 oom_kill event in StepId=57998585.0. Some of the step tasks have been OOM Killed.
+srun: error: spartan-bm088: task 0: Out Of Memory
+slurmstepd: error:  mpi/pmix_v4: _errhandler: spartan-bm088 [0]: pmixp_client_v2.c:211: Error handler invoked: status = -61, source = [slurm.pmix.57998585.0:0]
+slurmstepd: error: *** STEP 57998585.0 ON spartan-bm088 CANCELLED AT 2024-04-06T02:54:23 ***
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
