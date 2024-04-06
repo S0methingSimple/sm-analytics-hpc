@@ -82,6 +82,7 @@ def activity_analysis(df):
     print(f"Total number of tweets: {len(df)}\n")
     print(f"The happiest hour ever: {happiest_hour[1]}:00 on {happiest_hour[0]} with an overall sentiment score of {happiest_hour_score}")
     print(f"The happiest day ever: {happiest_day} was the happiest day with an overall sentiment score of {happiest_day_score}")
+    print("\n")
     print(f"The most active hour ever: {most_tweets_hour[1]}:00 on {most_tweets_hour[0]} had the most tweets (#{most_tweets_hour_count})")
     print(f"The most active day ever: {most_tweets_day} had the most tweets (#{most_tweets_day_count})")
 
