@@ -40,23 +40,24 @@ def batch_process_tweets(rank, size, local_offsets, json_file_path):
     df_local['Count'] = pd.to_numeric(df_local['Count'], errors='coerce')
 
     # Read JSON file in batches and process tweets starting from the given offset.
-    for offset in range(local_offsets[0], local_offsets[1], BATCH_SIZE):
+    for batch_offset in range(local_offsets[0], local_offsets[1], BATCH_SIZE):
         with open(json_file_path, 'r') as file:
-            file.seek(offset)
-            
-            # local batch should not be larger than the local offset end
-            local_batch = min(BATCH_SIZE, local_offsets[1] - offset)
-            data = file.read(local_batch)
+            try:
+                file.seek(batch_offset)
+                
+                # local batch should not be larger than the local offset end
+                local_batch = min(BATCH_SIZE, local_offsets[1] - batch_offset)
+                data = file.read(local_batch)
 
-            # Remove last line if rank is last
-            if rank == size - 1:
-                data = data[:data.rfind("\n")]
+                # Remove last line if rank is last
+                if rank == size - 1:
+                    data = data[:data.rfind("\n")]
 
-            # for all processes read from the first \n to the last \n
-            data = data[data.find("\n") + 1 : data.rfind("\n")]
+                # for all processes read from the first \n to the last \n
+                data = data[data.find("\n") + 1 : data.rfind("\n")]
 
-            # print last 30 characters of the data
-            tweets = json.loads(f"[{data[:-1]}]")
+                # print last 30 characters of the data
+                tweets = json.loads(f"[{data[:-1]}]")
 
                 if tweets:
                     # Extract relevant information from each tweet and append to the current DataFrame.
