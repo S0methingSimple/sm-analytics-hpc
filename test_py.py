@@ -1,5 +1,19 @@
 
 import json
+import re
+
+def extract_tweets(data):
+    # Sample of tweet: {"id":"1406813874750300166","key":[2021,6,21,"1405853521107324933","1055330142313046016","1406813874750300166"],"value":{"text":"Such a cute pupper 😍"},"doc":{"_id":"1406813874750300166","_rev":"1-1a7924e962def1c92ecd08ee1537ea1b","data":{"author_id":"1055330142313046016","conversation_id":"1405853521107324933","created_at":"2021-06-21T03:18:59.000Z","entities":{"mentions":[{"start":0,"end":13,"username":"pup_chazable"}]},"geo":{},"lang":"en","public_metrics":{"retweet_count":0,"reply_count":0,"like_count":0,"quote_count":0},"text":"@pup_chazable Such a cute pupper 😍","sentiment":0.7142857142857143},"matching_rules":[{"id":1406789634793697300,"tag":"Australia-based users or Australia-located tweets, but no re-tweets"}]}},
+    # This function attempts to extract date, hour, and sentiment from a tweet using RegEx.
+    data = data.split("\n")
+    tweets = []
+    pattern = r'"id":"(.+?)".+?"created_at":"(\d{4}-\d{2}-\d{2})T(\d{2}).+?"sentiment":(-?\d+\.\d+|0)'
+    for tweet in data:
+
+        matches = re.findall(pattern, tweet)
+        print(matches)
+
+    return tweets
 
 data = """{"id":"1406784136841371650","key":[2021,6,21,"1406056144301404166","943105250189180928","1406784136841371650"],"value":{"text":"You got issues 💀"},"doc":{"_id":"1406784136841371650","_rev":"1-d8fc09bff27ced6768bfb44572ef8896","data":{"author_id":"943105250189180928","conversation_id":"1406056144301404166","created_at":"2021-06-21T01:20:49.000Z","entities":{"mentions":[{"start":0,"end":15,"username":"sienna31579076"},{"start":16,"end":30,"username":"bluefaceniloc"}]},"geo":{},"lang":"en","public_metrics":{"retweet_count":0,"reply_count":0,"like_count":0,"quote_count":0},"text":"@sienna31579076 @bluefaceniloc You got issues 💀","sentiment":-0.3333333333333333},"matching_rules":[{"id":1405794688146182100,"tag":"Australia-based users or Australia-located tweets, but no re-tweets"}]}},
 {"id":"1406912037599412224","key":[2021,6,21,"1406056424409649153","1260182013857820672","1406912037599412224"],"value":{"text":"Welcome to Grab claim! or . the maximum compensation quickly by Uploading your documents on our app! App Store: . y:"},"doc":{"_id":"1406912037599412224","_rev":"1-c5bae43ce780900865a315c7cc5a89b2","data":{"author_id":"1260182013857820672","context_annotations":[{"domain":{"id":"46","name":"Brand Category","description":"Categories within Brand Verticals that narrow down the scope of Brands"},"entity":{"id":"781974596752842752","name":"Services"}},{"domain":{"id":"47","name":"Brand","description":"Brands and Companies"},"entity":{"id":"10026364281","name":"Apple"}},{"domain":{"id":"47","name":"Brand","description":"Brands and Companies"},"entity":{"id":"10026378521","name":"Google "}},{"domain":{"id":"48","name":"Product","description":"Products created by Brands.  Examples: Ford Explorer, Apple iPhone."},"entity":{"id":"10053298770","name":"Apple App Store","description":"Apple App Store"}},{"domain":{"id":"48","name":"Product","description":"Products created by Brands.  Examples: Ford Explorer, Apple iPhone."},"entity":{"id":"1395474411180892160","name":"Google brand conversation"}},{"domain":{"id":"46","name":"Brand Category","description":"Categories within Brand Verticals that narrow down the scope of Brands"},"entity":{"id":"781974596752842752","name":"Services"}},{"domain":{"id":"47","name":"Brand","description":"Brands and Companies"},"entity":{"id":"10026378521","name":"Google "}},{"domain":{"id":"47","name":"Brand","description":"Brands and Companies"},"entity":{"id":"10046487168","name":"App Store"}},{"domain":{"id":"48","name":"Product","description":"Products created by Brands.  Examples: Ford Explorer, Apple iPhone."},"entity":{"id":"10028889887","name":"Google Play"}}],"conversation_id":"1406056424409649153","created_at":"2021-06-21T09:49:03.000Z","entities":{"annotations":[{"start":183,"end":193,"probability":0.5193,"type":"Product","normalized_text":"Google Play"}],"hashtags":[{"start":34,"end":41,"tag":"flight"},{"start":42,"end":52,"tag":"cancelled"},{"start":56,"end":64,"tag":"delayed"},{"start":66,"end":72,"tag":"claim"}],"mentions":[{"start":0,"end":10,"username":"tooweevil"}],"urls":[{"start":158,"end":181,"url":"https://t.co/mvLD78EJmM","expanded_url":"https://apple.co/3aeLM6l","display_url":"apple.co/3aeLM6l","images":[{"url":"https://pbs.twimg.com/news_img/1405087801943552003/XEA6FPuI?format=png&name=orig","width":600,"height":600},{"url":"https://pbs.twimg.com/news_img/1405087801943552003/XEA6FPuI?format=png&name=150x150","width":150,"height":150}],"status":200,"title":"‎GrabClaim","description":"‎Travel is fun! But sometimes, things go wrong, leaving you with a bitter taste in your mouth. Moreover, many travellers often may not know that you have rights as a consumer. And for those passengers that DO know their rights, the entire process of determining what exactly are their rights or compen…","unwound_url":"https://apps.apple.com/in/app/grabclaim/id1494504616"},{"start":196,"end":219,"url":"https://t.co/ga8V5g6zLt","expanded_url":"https://play.google.com/store/apps/details?id=com.grabclaim","display_url":"play.google.com/store/apps/det…","images":[{"url":"https://pbs.twimg.com/news_img/1405564339273170946/feUb9YUu?format=png&name=orig","width":600,"height":300},{"url":"https://pbs.twimg.com/news_img/1405564339273170946/feUb9YUu?format=png&name=150x150","width":150,"height":150}],"status":200,"title":"Grab Claim - Apps on Google Play","description":"Providing service quality and standing for the rights of the traveling consumer.","unwound_url":"https://play.google.com/store/apps/details?id=com.grabclaim"},{"start":220,"end":243,"url":"https://t.co/MkTEwtTlNQ","expanded_url":"https://twitter.com/Suzan28626343/status/1406912037599412224/photo/1","display_url":"pic.twitter.com/MkTEwtTlNQ"}]},"geo":{},"lang":"en","public_metrics":{"retweet_count":0,"reply_count":0,"like_count":0,"quote_count":0},"text":"@tooweevil Welcome to Grab claim! #flight #cancelled or #delayed .#claim the maximum compensation quickly by Uploading your documents on our app! App  Store: https://t.co/mvLD78EJmM .Google Play: https://t.co/ga8V5g6zLt https://t.co/MkTEwtTlNQ","sentiment":0},"matching_rules":[{"id":1406789634793697300,"tag":"Australia-based users or Australia-located tweets, but no re-tweets"}]}},
@@ -14,13 +28,17 @@ data = """{"id":"1406784136841371650","key":[2021,6,21,"1406056144301404166","94
 
 
 data = data[data.find("\n") + 1 : data.rfind("\n")]
-# remove last comma and add brackets to make it a valid JSON array
-json_data = f"[{data[:-1]}]"
 
-# Assuming the JSON string is stored in a variable called 'json_data'
-data = json.loads(json_data)
+tweets = extract_tweets(data)
+print(tweets)
 
-# Now you can access the data within the JSON objects using keys
-print(data[0]['id'])  # Access the 'id' of the first object
+# # remove last comma and add brackets to make it a valid JSON array
+# json_data = f"[{data[:-1]}]"
+
+# # Assuming the JSON string is stored in a variable called 'json_data'
+# data = json.loads(json_data)
+
+# # Now you can access the data within the JSON objects using keys
+# print(data[0]['id'])  # Access the 'id' of the first object
 
 

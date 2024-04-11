@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import re
 import time
 import numpy as np
 import pandas as pd
@@ -16,24 +17,39 @@ from mpi4py import MPI
 BUFFER = 1024 # buffer is 1kb (1 tweet length)
 BATCH_SIZE = 5000 * 1024 # 5MB (5000 tweets)
 
-def extract_tweet_info(tweet):
-    # This function attempts to extract date, hour, and sentiment from a tweet.
-    # It handles exceptions to ensure the program continues even if data is missing or format is unexpected.
-    try:
-        doc = tweet.get("doc", {})
-        id = doc.get("_id")
-        data = doc.get("data", {})
-        created_at = data["created_at"].split("T")
-        date = created_at[0]
-        hour = created_at[1][:2]  # Extracts only the hour part from the timestamp.
+# def extract_tweet_info(tweet):
+#     # This function attempts to extract date, hour, and sentiment from a tweet.
+#     # It handles exceptions to ensure the program continues even if data is missing or format is unexpected.
+#     try:
+#         doc = tweet.get("doc", {})
+#         id = doc.get("_id")
+#         data = doc.get("data", {})
+#         created_at = data["created_at"].split("T")
+#         date = created_at[0]
+#         hour = created_at[1][:2]  # Extracts only the hour part from the timestamp.
 
-        # Attempt to parse sentiment data, which might be stored directly as a float or inside a dictionary.
-        sentiment_value = data.get("sentiment")
-        sentiment = np.float32(sentiment_value.get("score", 0)) if isinstance(sentiment_value, dict) else np.float32(sentiment_value)
-        return (id, date, hour, sentiment)
-    except (KeyError, IndexError, ValueError, TypeError):
-        # If there's any error in data extraction, return None.
-        return None
+#         # Attempt to parse sentiment data, which might be stored directly as a float or inside a dictionary.
+#         sentiment_value = data.get("sentiment")
+#         sentiment = np.float32(sentiment_value.get("score", 0)) if isinstance(sentiment_value, dict) else np.float32(sentiment_value)
+#         return (id, date, hour, sentiment)
+#     except (KeyError, IndexError, ValueError, TypeError):
+#         # If there's any error in data extraction, return None.
+#         return None
+    
+def extract_tweets(data):
+    # Sample of tweet: {"id":"1406813874750300166","key":[2021,6,21,"1405853521107324933","1055330142313046016","1406813874750300166"],"value":{"text":"Such a cute pupper 😍"},"doc":{"_id":"1406813874750300166","_rev":"1-1a7924e962def1c92ecd08ee1537ea1b","data":{"author_id":"1055330142313046016","conversation_id":"1405853521107324933","created_at":"2021-06-21T03:18:59.000Z","entities":{"mentions":[{"start":0,"end":13,"username":"pup_chazable"}]},"geo":{},"lang":"en","public_metrics":{"retweet_count":0,"reply_count":0,"like_count":0,"quote_count":0},"text":"@pup_chazable Such a cute pupper 😍","sentiment":0.7142857142857143},"matching_rules":[{"id":1406789634793697300,"tag":"Australia-based users or Australia-located tweets, but no re-tweets"}]}},
+    # This function attempts to extract date, hour, and sentiment from a tweet using RegEx.
+    data = data.split("\n")
+    tweets = []
+    pattern = r'"id":"(.+?)".+?"created_at":"(\d{4}-\d{2}-\d{2})T(\d{2}).+?"sentiment":(-?\d+\.\d+|0)'
+    for tweet in data:
+        matches = re.findall(pattern, tweet)
+        if matches and len(matches[0]) == 4:
+            tweets.append(matches[0])
+
+    return tweets
+            
+
 
 def batch_process_tweets(rank, size, local_offsets, json_file_path):
     df_local = pd.DataFrame(columns=['Id', 'Date', 'Hour', 'Sentiment'])
@@ -56,11 +72,11 @@ def batch_process_tweets(rank, size, local_offsets, json_file_path):
                 data = data[data.find("\n") + 1 : data.rfind("\n")]
 
                 # print last 30 characters of the data
-                tweets = json.loads(f"[{data[:-1]}]")
+                tweets = extract_tweets(data)
 
                 if tweets:
                     # Extract relevant information from each tweet and append to the current DataFrame.
-                    extracted_info = np.array([extract_tweet_info(tweet) for tweet in tweets if extract_tweet_info(tweet) is not None], dtype=[('Id', 'u8'), ('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
+                    extracted_info = np.array(tweets, dtype=[('Id', 'u8'), ('Date', 'U10'), ('Hour', 'u4'), ('Sentiment', 'f4')])
                     if extracted_info.size > 0:
                         df_local = pd.concat([df_local, pd.DataFrame(extracted_info)])
 
