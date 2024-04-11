@@ -10,14 +10,15 @@ from mpi4py import MPI
 # 1MB: 1000 tweets
 # 50MB: 50,000 tweets
 # 100GB: 100,000,000 tweets
-BUFFER = 0 # buffer is 2kb (2 tweets length)
-BUFFER = 0 # buffer is 2kb (2 tweets length)
+BUFFER = 2048 # buffer is 2kb (2 tweets length)
+# BATCH_SIZE = 1000 * 1024 # 1MB
 
 def extract_tweet_info(tweet):
     # This function attempts to extract date, hour, and sentiment from a tweet.
     # It handles exceptions to ensure the program continues even if data is missing or format is unexpected.
     try:
         doc = tweet.get("doc", {})
+        id = doc.get("_id")
         data = doc.get("data", {})
         created_at = data["created_at"].split("T")
         date = created_at[0]
@@ -26,7 +27,7 @@ def extract_tweet_info(tweet):
         # Attempt to parse sentiment data, which might be stored directly as a float or inside a dictionary.
         sentiment_value = data.get("sentiment")
         sentiment = np.float32(sentiment_value.get("score", 0)) if isinstance(sentiment_value, dict) else np.float32(sentiment_value)
-        return (date, hour, sentiment)
+        return (id, date, hour, sentiment)
     except (KeyError, IndexError, ValueError, TypeError):
         # If there's any error in data extraction, return None.
         return None
@@ -43,10 +44,6 @@ def main():
             print("Usage: mpiexec -n <num_processes> python mpi_twitter_metrics.py <json_file_path>")
             sys.exit(1)
         json_file_path = sys.argv[1]  # Path to the JSON file containing tweets.
-        # with open(json_file_path, 'r') as file:
-        #     tweet_data = json.load(file)["rows"]  # Load tweet data from the JSON file.
-        # chunks = [tweet_data[i::size] for i in range(size)]  # Split data into chunks for each process.
-
         file_size = os.path.getsize(json_file_path)
 
         # Calculate chunk size and adjust for last process
@@ -64,7 +61,30 @@ def main():
 
     # Distribute data chunks to each process.
     local_offsets = comm.scatter(buffered_offsets, root=0)
+    # df_local = pd.DataFrame(columns=['Id', 'Date', 'Hour', 'Sentiment'])
     print(f"Rank {rank} is processing data from {local_offsets[0]} to {local_offsets[1]}")
+
+    # # Read JSON file in batches and process tweets starting from the given offset.
+    # for offset in range(local_offsets[0], local_offsets[1], BATCH_SIZE):
+    #     with open(local_offsets[2], 'r') as file:
+    #         file.seek(offset)
+    #         data = file.read(BATCH_SIZE)
+
+    #         # Remove last line if rank is last
+    #         if rank == size - 1:
+    #             data = data[:data.rfind("\n")]
+
+    #         # for all processes read from the first \n to the last \n
+    #         data = data[data.find("\n") + 1 : data.rfind("\n")]
+
+    #         # print last 30 characters of the data
+    #         tweets = json.loads(f"[{data[:-1]}]")
+
+    #         if tweets:
+    #             # Extract relevant information from each tweet and append to the current DataFrame.
+    #             extracted_info = np.array([extract_tweet_info(tweet) for tweet in tweets if extract_tweet_info(tweet) is not None], dtype=[('Id', 'U20'), ('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
+    #             if extracted_info.size > 0:
+    #                 df_local = pd.concat([df_local, pd.DataFrame(extracted_info)])
 
     # Process tweets locally on each process and extract relevant information.
     local_tweets = []
@@ -82,13 +102,16 @@ def main():
         # print last 30 characters of the data
         local_tweets = json.loads(f"[{data[:-1]}]")
 
-    extracted_info = np.array([extract_tweet_info(tweet) for tweet in local_tweets if extract_tweet_info(tweet) is not None], dtype=[('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
+    extracted_info = np.array([extract_tweet_info(tweet) for tweet in local_tweets if extract_tweet_info(tweet) is not None], dtype=[('Id', 'U20'), ('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
     
     # Convert numpy array to DataFrame if there is data.
     if extracted_info.size > 0:
         df_local = pd.DataFrame(extracted_info)
     else:
-        df_local = pd.DataFrame(columns=['Date', 'Hour', 'Sentiment'])
+        df_local = pd.DataFrame(columns=['Id', 'Date', 'Hour', 'Sentiment'])
+
+    # Print the number of tweets processed by each process.
+    print(f"Rank {rank} processed {len(df_local)} tweets")
 
     # Gather all local DataFrames at the root process.
     gathered_data = comm.gather(df_local, root=0)
@@ -96,6 +119,7 @@ def main():
     if rank == 0:
         # Combine all DataFrames into a single DataFrame.
         df_all = pd.concat(gathered_data)
+        df_all.drop_duplicates(subset='Id', keep='last', inplace=True)  # Remove duplicate tweets based on ID.
         print(f"\nTotal number of tweets: {len(df_all)}")
         most_tweets_hour, happiest_hour, most_tweets_day, happiest_day, most_tweets_hour_count, happiest_hour_score, most_tweets_day_count, happiest_day_score = activity_analysis(df_all)  # Analyze the combined data.
         
