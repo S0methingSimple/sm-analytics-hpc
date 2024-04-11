@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import time
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
@@ -12,7 +13,7 @@ from mpi4py import MPI
 # 100GB: 100,000,000 tweets
 # 5.6GB for 100,000,000 tweets (60 bytes/record)
 
-BUFFER = 2048 # buffer is 2kb (2 tweets length)
+BUFFER = 1024 # buffer is 1kb (1 tweet length)
 BATCH_SIZE = 5000 * 1024 # 5MB (5000 tweets)
 
 def extract_tweet_info(tweet):
@@ -81,6 +82,7 @@ def generate_offsets(file_path, size):
 def activity_analysis(df):
     # Remove duplicate tweets based on ID.
     df.drop_duplicates(subset='Id', keep='last', inplace=True)  
+    print(f"\nTotal number of tweets: {len(df)}\n")
     
     # This function calculates and prints out various statistics about tweet activity.
     # Determine the hour and day with the most tweets and the highest average sentiment.
@@ -97,12 +99,14 @@ def activity_analysis(df):
 
     # Print detailed results.
     print(f"The happiest hour ever: {happiest_hour[1]}:00 on {happiest_hour[0]} with an overall sentiment score of {happiest_hour_score}")
-    print(f"The happiest day ever: {happiest_day} was the happiest day with an overall sentiment score of {happiest_day_score}")
-    print()
+    print(f"The happiest day ever: {happiest_day} was the happiest day with an overall sentiment score of {happiest_day_score}\n")
+
     print(f"The most active hour ever: {most_tweets_hour[1]}:00 on {most_tweets_hour[0]} had the most tweets (#{most_tweets_hour_count})")
-    print(f"The most active day ever: {most_tweets_day} had the most tweets (#{most_tweets_day_count})")
+    print(f"The most active day ever: {most_tweets_day} had the most tweets (#{most_tweets_day_count})\n")
 
 def main():
+    start_time = time.time()  # Record start time
+
     comm = MPI.COMM_WORLD  # Initialize MPI environment.
     rank = comm.Get_rank()  # Get the rank of the process within the communicator.
     size = comm.Get_size()  # Get the total number of processes in the communicator.
@@ -113,7 +117,7 @@ def main():
             # If the filename is not provided, terminate the program with an error message.
             print("Usage: mpiexec -n <num_processes> python mpi_twitter_metrics.py <json_file_path>")
             sys.exit(1)
-            
+
         json_file_path = sys.argv[1]  # Path to the JSON file containing tweets.
        
         # Generate byte offsets for each process to read from the JSON file.
@@ -133,8 +137,11 @@ def main():
     if rank == 0:
         # Combine all DataFrames into a single DataFrame.
         df_all = pd.concat(gathered_data)
-        print(f"\nTotal number of tweets: {len(df_all)}\n")
         activity_analysis(df_all)  # Analyze the combined data.
+
+        end_time = time.time()  # Record end time
+        total_time = end_time - start_time
+        print(f"Total processing time: {total_time:.2f} seconds")
 
 if __name__ == "__main__":
     main()
