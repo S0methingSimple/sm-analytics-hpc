@@ -13,8 +13,8 @@ from mpi4py import MPI
 # 100GB: 100,000,000 tweets
 # 5.6GB for 100,000,000 tweets (60 bytes/record)
 
-BUFFER = 1024 # buffer is 1kb (1 tweet length)
-BATCH_SIZE = 5000 * 1024 # 5MB (5000 tweets)
+BUFFER = 0 # buffer is 1kb (1 tweet length)
+BATCH_SIZE = 50000 * 1024 # 10MB (10000 tweets)
 
 def extract_tweet_info(tweet):
     # This function attempts to extract date, hour, and sentiment from a tweet.
@@ -36,7 +36,8 @@ def extract_tweet_info(tweet):
         return None
 
 def batch_process_tweets(rank, size, local_offsets, json_file_path):
-    df_local = pd.DataFrame(columns=['Id', 'Date', 'Hour', 'Sentiment'])
+    df_local = pd.DataFrame(columns=['Date', 'Hour', 'Count', 'Sentiment'])
+    df_local['Count'] = pd.to_numeric(df_local['Count'], errors='coerce')
 
     # Read JSON file in batches and process tweets starting from the given offset.
     for offset in range(local_offsets[0], local_offsets[1], BATCH_SIZE):
@@ -57,11 +58,16 @@ def batch_process_tweets(rank, size, local_offsets, json_file_path):
             # print last 30 characters of the data
             tweets = json.loads(f"[{data[:-1]}]")
 
-            if tweets:
-                # Extract relevant information from each tweet and append to the current DataFrame.
-                extracted_info = np.array([extract_tweet_info(tweet) for tweet in tweets if extract_tweet_info(tweet) is not None], dtype=[('Id', 'u8'), ('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
-                if extracted_info.size > 0:
-                    df_local = pd.concat([df_local, pd.DataFrame(extracted_info)])
+                if tweets:
+                    # Extract relevant information from each tweet and append to the current DataFrame.
+                    extracted_info = np.array([extract_tweet_info(tweet) for tweet in tweets if extract_tweet_info(tweet) is not None], dtype=[('Id', 'u8'), ('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
+                    if extracted_info.size > 0:
+                        df_batch = local_analysis(pd.DataFrame(extracted_info))
+                        df_local = pd.concat([df_local, df_batch])
+            
+            except UnicodeDecodeError:
+                # Handle the error (e.g., skip the chunk, log a warning)
+                print(f"Error decoding data at offset {batch_offset}")
 
     # Print the number of tweets processed by each process.
     print(f"Rank {rank} processed {len(df_local)} tweets from {local_offsets[0]} to {local_offsets[1]} bytes.")
@@ -79,22 +85,31 @@ def generate_offsets(file_path, size):
 
     return [((max(offset[0] - BUFFER, 0), offset[1]), file_path) if i != 0 else (offset, file_path) for i, offset in enumerate(offsets)]
 
-def activity_analysis(df):
+def local_analysis(df):
     # Remove duplicate tweets based on ID.
     df.drop_duplicates(subset='Id', keep='last', inplace=True)  
+
+    grouped_data = df.groupby(['Date', 'Hour']).size().to_frame('Count')
+    grouped_data['Sentiment'] = df.groupby(['Date', 'Hour'])['Sentiment'].mean()
+    grouped_data.reset_index(inplace=True)
+    
+    return grouped_data
+
+def job_analysis(df):
+    # Remove duplicate tweets based on ID.
     print(f"\nTotal number of tweets: {len(df)}\n")
     
     # This function calculates and prints out various statistics about tweet activity.
     # Determine the hour and day with the most tweets and the highest average sentiment.
-    most_tweets_hour = df.groupby(['Date', 'Hour']).size().idxmax()
+    most_tweets_hour = df.groupby(['Date', 'Hour'])['Count'].sum().idxmax()
     happiest_hour = df.groupby(['Date', 'Hour'])['Sentiment'].mean().idxmax()
-    most_tweets_day = df.groupby('Date').size().idxmax()
+    most_tweets_day = df.groupby('Date')['Count'].sum().idxmax()
     happiest_day = df.groupby('Date')['Sentiment'].mean().idxmax()
 
     # Calculate the actual maximum values for tweet counts and sentiment scores.
-    most_tweets_hour_count = df.groupby(['Date', 'Hour']).size().max()
+    most_tweets_hour_count = df.groupby(['Date', 'Hour'])['Count'].sum().max()
     happiest_hour_score = df.groupby(['Date', 'Hour'])['Sentiment'].mean().max()
-    most_tweets_day_count = df.groupby('Date').size().max()
+    most_tweets_day_count = df.groupby('Date')['Count'].sum().max()
     happiest_day_score = df.groupby('Date')['Sentiment'].mean().max()
 
     # Print detailed results.
@@ -137,7 +152,7 @@ def main():
     if rank == 0:
         # Combine all DataFrames into a single DataFrame.
         df_all = pd.concat(gathered_data)
-        activity_analysis(df_all)  # Analyze the combined data.
+        job_analysis(df_all)  # Analyze the combined data.
 
         end_time = time.time()  # Record end time
         total_time = end_time - start_time
