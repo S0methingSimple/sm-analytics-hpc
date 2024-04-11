@@ -5,6 +5,10 @@ import numpy as np
 import pandas as pd
 from mpi4py import MPI
 
+# 1MB: 1000 tweets
+# 50MB: 50,000 tweets
+# 100GB: 100,000,000 tweets
+
 def extract_tweet_info(tweet):
     # This function attempts to extract date, hour, and sentiment from a tweet.
     # It handles exceptions to ensure the program continues even if data is missing or format is unexpected.
@@ -60,8 +64,16 @@ def main():
     if rank == 0:
         # Combine all DataFrames into a single DataFrame.
         df_all = pd.concat(gathered_data)
-        print(f"\nTotal number of tweets: {len(df_all)}\n")
-        activity_analysis(df_all)  # Analyze the combined data.
+        print(f"\nTotal number of tweets: {len(df_all)}")
+        most_tweets_hour, happiest_hour, most_tweets_day, happiest_day, most_tweets_hour_count, happiest_hour_score, most_tweets_day_count, happiest_day_score = activity_analysis(df_all)  # Analyze the combined data.
+        
+        # Print detailed results.
+        print("\n")
+        print(f"The happiest hour ever: {happiest_hour[1]}:00 on {happiest_hour[0]} with an overall sentiment score of {happiest_hour_score}")
+        print(f"The happiest day ever: {happiest_day} was the happiest day with an overall sentiment score of {happiest_day_score}")
+        print("\n")
+        print(f"The most active hour ever: {most_tweets_hour[1]}:00 on {most_tweets_hour[0]} had the most tweets (#{most_tweets_hour_count})")
+        print(f"The most active day ever: {most_tweets_day} had the most tweets (#{most_tweets_day_count})")
 
 def activity_analysis(df):
     # This function calculates and prints out various statistics about tweet activity.
@@ -77,14 +89,8 @@ def activity_analysis(df):
     most_tweets_day_count = df.groupby('Date').size().max()
     happiest_day_score = df.groupby('Date')['Sentiment'].mean().max()
 
-    # Print detailed results.
-    print("\n")
-    print(f"Total number of tweets: {len(df)}\n")
-    print(f"The happiest hour ever: {happiest_hour[1]}:00 on {happiest_hour[0]} with an overall sentiment score of {happiest_hour_score}")
-    print(f"The happiest day ever: {happiest_day} was the happiest day with an overall sentiment score of {happiest_day_score}")
-    print("\n")
-    print(f"The most active hour ever: {most_tweets_hour[1]}:00 on {most_tweets_hour[0]} had the most tweets (#{most_tweets_hour_count})")
-    print(f"The most active day ever: {most_tweets_day} had the most tweets (#{most_tweets_day_count})")
+    # Return the results as a tuple.
+    return most_tweets_hour, happiest_hour, most_tweets_day, happiest_day, most_tweets_hour_count, happiest_hour_score, most_tweets_day_count, happiest_day_score
 
 
 if __name__ == "__main__":
