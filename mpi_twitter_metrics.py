@@ -1,13 +1,17 @@
 #!/usr/bin/env python
+import os
 import sys
 import json
 import numpy as np
 import pandas as pd
 from mpi4py import MPI
 
+# 1 Tweet: 1KB
 # 1MB: 1000 tweets
 # 50MB: 50,000 tweets
 # 100GB: 100,000,000 tweets
+BUFFER = 0 # buffer is 2kb (2 tweets length)
+BUFFER = 0 # buffer is 2kb (2 tweets length)
 
 def extract_tweet_info(tweet):
     # This function attempts to extract date, hour, and sentiment from a tweet.
@@ -39,17 +43,45 @@ def main():
             print("Usage: mpiexec -n <num_processes> python mpi_twitter_metrics.py <json_file_path>")
             sys.exit(1)
         json_file_path = sys.argv[1]  # Path to the JSON file containing tweets.
-        with open(json_file_path, 'r') as file:
-            tweet_data = json.load(file)["rows"]  # Load tweet data from the JSON file.
-        chunks = [tweet_data[i::size] for i in range(size)]  # Split data into chunks for each process.
+        # with open(json_file_path, 'r') as file:
+        #     tweet_data = json.load(file)["rows"]  # Load tweet data from the JSON file.
+        # chunks = [tweet_data[i::size] for i in range(size)]  # Split data into chunks for each process.
+
+        file_size = os.path.getsize(json_file_path)
+
+        # Calculate chunk size and adjust for last process
+        chunk_size = (file_size + size - 1) // size
+
+        # Calculate starting and ending byte offsets (start, end) for each chunk
+        offsets = [(rank * chunk_size, min(file_size, (rank + 1) * chunk_size)) for rank in range(size)]
+        offsets[-1] = (offsets[-1][0], file_size) # last offset should not be larger than the file size
+
+        # Add buffer to the start of each chunk except the first one
+        buffered_offsets = [(max(offset[0] - BUFFER, 0), offset[1], json_file_path) if i != 0 else (offset[0], offset[1], json_file_path) for i, offset in enumerate(offsets)]
+
     else:
-        chunks = None
+        buffered_offsets = None
 
     # Distribute data chunks to each process.
-    local_tweets = comm.scatter(chunks, root=0)
-    print(f"Rank {rank} is processing {len(local_tweets)} tweets")
+    local_offsets = comm.scatter(buffered_offsets, root=0)
+    print(f"Rank {rank} is processing data from {local_offsets[0]} to {local_offsets[1]}")
 
     # Process tweets locally on each process and extract relevant information.
+    local_tweets = []
+    with open(local_offsets[2], 'r') as file:
+        file.seek(local_offsets[0])
+        data = file.read(local_offsets[1] - local_offsets[0])
+
+        # Remove last line if rank is last
+        if rank == size - 1:
+            data = data[:data.rfind("\n")]
+
+        # for all processes read from the first \n to the last \n
+        data = data[data.find("\n") + 1 : data.rfind("\n")]
+
+        # print last 30 characters of the data
+        local_tweets = json.loads(f"[{data[:-1]}]")
+
     extracted_info = np.array([extract_tweet_info(tweet) for tweet in local_tweets if extract_tweet_info(tweet) is not None], dtype=[('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
     
     # Convert numpy array to DataFrame if there is data.
