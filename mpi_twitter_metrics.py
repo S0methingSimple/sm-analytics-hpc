@@ -39,29 +39,34 @@ def batch_process_tweets(rank, size, local_offsets, json_file_path):
     df_local = pd.DataFrame(columns=['Id', 'Date', 'Hour', 'Sentiment'])
 
     # Read JSON file in batches and process tweets starting from the given offset.
-    for offset in range(local_offsets[0], local_offsets[1], BATCH_SIZE):
+    for batch_offset in range(local_offsets[0], local_offsets[1], BATCH_SIZE):
         with open(json_file_path, 'r') as file:
-            file.seek(offset)
-            
-            # local batch should not be larger than the local offset end
-            local_batch = min(BATCH_SIZE, local_offsets[1] - offset)
-            data = file.read(local_batch)
+            try:
+                file.seek(batch_offset)
+                
+                # local batch should not be larger than the local offset end
+                local_batch = min(BATCH_SIZE, local_offsets[1] - batch_offset)
+                data = file.read(local_batch)
 
-            # Remove last line if rank is last
-            if rank == size - 1:
-                data = data[:data.rfind("\n")]
+                # Remove last line if rank is last
+                if rank == size - 1:
+                    data = data[:data.rfind("\n")]
 
-            # for all processes read from the first \n to the last \n
-            data = data[data.find("\n") + 1 : data.rfind("\n")]
+                # for all processes read from the first \n to the last \n
+                data = data[data.find("\n") + 1 : data.rfind("\n")]
 
-            # print last 30 characters of the data
-            tweets = json.loads(f"[{data[:-1]}]")
+                # print last 30 characters of the data
+                tweets = json.loads(f"[{data[:-1]}]")
 
-            if tweets:
-                # Extract relevant information from each tweet and append to the current DataFrame.
-                extracted_info = np.array([extract_tweet_info(tweet) for tweet in tweets if extract_tweet_info(tweet) is not None], dtype=[('Id', 'u8'), ('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
-                if extracted_info.size > 0:
-                    df_local = pd.concat([df_local, pd.DataFrame(extracted_info)])
+                if tweets:
+                    # Extract relevant information from each tweet and append to the current DataFrame.
+                    extracted_info = np.array([extract_tweet_info(tweet) for tweet in tweets if extract_tweet_info(tweet) is not None], dtype=[('Id', 'u8'), ('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
+                    if extracted_info.size > 0:
+                        df_local = pd.concat([df_local, pd.DataFrame(extracted_info)])
+
+            except UnicodeDecodeError:
+                # Handle the error (e.g., skip the chunk, log a warning)
+                print(f"Error decoding data at offset {batch_offset}")
 
     # Print the number of tweets processed by each process.
     print(f"Rank {rank} processed {len(df_local)} tweets from {local_offsets[0]} to {local_offsets[1]} bytes.")
