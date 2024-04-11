@@ -14,7 +14,7 @@ from mpi4py import MPI
 # 5.6GB for 100,000,000 tweets (60 bytes/record)
 
 BUFFER = 0 # buffer is 1kb (1 tweet length)
-BATCH_SIZE = 50000 * 1024 # 10MB (10000 tweets)
+BATCH_SIZE = 5000 * 1024 # 5MB (5000 tweets)
 
 def extract_tweet_info(tweet):
     # This function attempts to extract date, hour, and sentiment from a tweet.
@@ -47,6 +47,7 @@ def batch_process_tweets(rank, size, local_offsets, json_file_path):
                 
                 # local batch should not be larger than the local offset end
                 local_batch = min(BATCH_SIZE, local_offsets[1] - batch_offset)
+                print(f"Processing {batch_offset} to {batch_offset + local_batch} bytes")
                 data = file.read(local_batch)
 
                 # Remove last line if rank is last
@@ -61,7 +62,7 @@ def batch_process_tweets(rank, size, local_offsets, json_file_path):
 
                 if tweets:
                     # Extract relevant information from each tweet and append to the current DataFrame.
-                    extracted_info = np.array([extract_tweet_info(tweet) for tweet in tweets if extract_tweet_info(tweet) is not None], dtype=[('Id', 'u8'), ('Date', 'U10'), ('Hour', 'U2'), ('Sentiment', 'f4')])
+                    extracted_info = np.array([extract_tweet_info(tweet) for tweet in tweets if extract_tweet_info(tweet) is not None], dtype=[('Id', 'u8'), ('Date', 'U10'), ('Hour', 'u1'), ('Sentiment', 'f4')])
                     if extracted_info.size > 0:
                         df_batch = local_analysis(pd.DataFrame(extracted_info))
                         df_local = pd.concat([df_local, df_batch])
@@ -71,7 +72,7 @@ def batch_process_tweets(rank, size, local_offsets, json_file_path):
                 print(f"Error decoding data at offset {batch_offset}")
 
     # Print the number of tweets processed by each process.
-    print(f"Rank {rank} processed {len(df_local)} tweets from {local_offsets[0]} to {local_offsets[1]} bytes.")
+    print(f"Rank {rank} processed {len(df_local)} records from {local_offsets[0]} to {local_offsets[1]} bytes.")
 
     return df_local
 
@@ -98,7 +99,7 @@ def local_analysis(df):
 
 def job_analysis(df):
     # Remove duplicate tweets based on ID.
-    print(f"\nTotal number of tweets: {len(df)}\n")
+    print(f"\nTotal number of processed records: {len(df)}\n")
     
     # This function calculates and prints out various statistics about tweet activity.
     # Determine the hour and day with the most tweets and the highest average sentiment.
