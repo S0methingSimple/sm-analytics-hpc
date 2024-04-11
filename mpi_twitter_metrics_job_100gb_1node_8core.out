@@ -1,0 +1,32 @@
+Job ID           : 57998585
+Cluster          : spartan
+User/Project     : harutok/comp90024
+Nodes            : 1
+Wall-clock time  : 00:00:30 / 00:10:00
+
+Displaying overall resources usage from 2024-04-06 02:54:04 to 2024-04-06 02:54:34:
+
+NODE            CPU#        TOT%   ( USR   / SYS   / WIO   / IDLE  ) 
+
+spartan-bm088 : 
+                CPU# 1    : 58.5   (   2.9 /  55.6 /   1.9 /  39.6 ) 
+                CPU# 2    : 59.3   (  55.3 /   4.0 /   1.9 /  38.8 ) 
+                CPU# 3    : 60.6   (  55.5 /   5.1 /   2.0 /  37.4 ) 
+                CPU# 4    : 67.4   (  61.3 /   6.1 /   2.0 /  30.6 ) 
+                CPU# 5    : 62.4   (  57.8 /   4.6 /   1.9 /  35.7 ) 
+                CPU# 6    : 60.9   (  56.2 /   4.7 /   1.9 /  37.1 ) 
+                CPU# 7    : 59.7   (  55.7 /   4.0 /   1.9 /  38.4 ) 
+                CPU# 8    : 59.4   (  55.4 /   4.0 /   2.0 /  38.6 ) 
+
+
+Allocated CPUs            : 8    
+  CPUs with usage <25%    : 0    
+  CPUs with usage <50%    : 0    
+  CPUs with usage >50%    : 8    
+
+Memory used (RAM)         : 0.0%  [4MB of 33555MB]
+
+--------------------------------------------
+
+Apr  6 02:54:22 spartan-bm088 kernel: Memory cgroup stats for /system.slice/slurmstepd.scope/job_57998585:
+Apr  6 02:54:22 spartan-bm088 kernel: oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),cpuset=task_0,mems_allowed=0-3,oom_memcg=/system.slice/slurmstepd.scope/job_57998585,task_memcg=/system.slice/slurmstepd.scope/job_57998585/step_0/user/task_0,task=python3,pid=212683,uid=16736
